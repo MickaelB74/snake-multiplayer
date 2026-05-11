@@ -218,12 +218,11 @@ class Room {
       players: this.serializePlayers(),
     });
 
-    // Vérifier la condition de fin : 0 ou 1 joueur vivant
+    // Condition de fin : la partie s'arrête UNIQUEMENT quand TOUS les joueurs sont morts.
+    // Le dernier joueur en vie continue donc à jouer seul (et accumule du score) jusqu'à sa propre mort.
+    // Le gagnant sera celui qui sera mort en dernier (= deathOrder le plus haut).
     const aliveCount = [...this.players.values()].filter(p => p.alive).length;
-    if (aliveCount <= 1 && this.players.size > 1) {
-      this.finish();
-    } else if (aliveCount === 0 && this.players.size === 1) {
-      // Cas solo : on termine quand le seul joueur meurt
+    if (aliveCount === 0) {
       this.finish();
     }
   }
@@ -244,18 +243,12 @@ class Room {
     clearInterval(this.tickInterval);
     this.tickInterval = null;
 
-    // Le gagnant est soit le dernier vivant, soit le dernier mort (meilleur score / dernier)
-    const alive = [...this.players.values()].filter(p => p.alive);
-    if (alive.length === 1) {
-      this.winner = alive[0].id;
-      alive[0].deathOrder = this.players.size; // Marqué dernier (= 1er au classement)
-    } else if (alive.length === 0) {
-      // Tous morts : le gagnant est celui mort en dernier (deathOrder le plus haut)
-      const sorted = [...this.players.values()].sort(
-        (a, b) => (b.deathOrder || 0) - (a.deathOrder || 0)
-      );
-      this.winner = sorted[0]?.id || null;
-    }
+    // À ce stade, tous les joueurs sont morts (cf. condition de tick()).
+    // Le gagnant est celui qui est mort en dernier = deathOrder le plus élevé.
+    const sorted = [...this.players.values()].sort(
+      (a, b) => (b.deathOrder || 0) - (a.deathOrder || 0)
+    );
+    this.winner = sorted[0]?.id || null;
 
     // Classement : tri par deathOrder décroissant (mort plus tard = mieux classé),
     // puis par score décroissant à égalité
@@ -374,9 +367,9 @@ wss.on('connection', (ws) => {
               playerId,
               name: player.name,
             });
-            // Vérifier si la partie doit se terminer (1 ou 0 joueurs restants)
+            // La partie se termine seulement quand TOUS les joueurs restants sont morts
             const aliveCount = [...room.players.values()].filter(p => p.alive).length;
-            if (aliveCount <= 1 && room.players.size > 0) {
+            if (aliveCount === 0 && room.players.size > 0) {
               room.finish();
             }
           }
