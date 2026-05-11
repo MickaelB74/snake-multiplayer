@@ -1,0 +1,20 @@
+# Configuration Render.com - Infrastructure as Code
+# Permet le déploiement direct via "Blueprint" sur Render
+# Documentation : https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: snake-multiplayer
+    runtime: node
+    plan: free                      # 'free' pour tester, 'starter' recommandé pour la prod
+    region: frankfurt               # Choisir la région la plus proche des joueurs
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health        # Endpoint exposé par le serveur pour les health checks
+    autoDeploy: true                # Redéploie à chaque push sur la branche
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"

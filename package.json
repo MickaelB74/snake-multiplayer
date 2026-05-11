@@ -1,0 +1,20 @@
+{
+  "name": "snake-multiplayer",
+  "version": "1.0.0",
+  "description": "Snake multijoueur temps réel avec WebSocket - Prêt pour Render.com",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
