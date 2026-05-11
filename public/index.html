@@ -1,1 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Multijoueur</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
 
+    <!-- ============ ÉCRAN 1 : MENU PRINCIPAL ============ -->
+    <section id="screen-menu" class="screen active">
+      <div class="card">
+        <h1 class="logo">🐍 SNAKE</h1>
+        <p class="subtitle">Multijoueur temps réel</p>
+
+        <label class="field">
+          <span>Ton pseudo</span>
+          <input id="input-name" type="text" maxlength="16" placeholder="Joueur" autocomplete="off">
+        </label>
+
+        <button id="btn-create" class="btn btn-primary">Créer une partie</button>
+
+        <div class="divider"><span>ou</span></div>
+
+        <label class="field">
+          <span>Code de la partie</span>
+          <input id="input-code" type="text" maxlength="5" placeholder="A3F9K" autocomplete="off">
+        </label>
+        <button id="btn-join" class="btn btn-secondary">Rejoindre</button>
+
+        <p id="menu-error" class="error-msg"></p>
+        <p id="connection-status" class="status">Connexion au serveur...</p>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 2 : LOBBY (SALLE D'ATTENTE) ============ -->
+    <section id="screen-lobby" class="screen">
+      <div class="card">
+        <h2>Salle d'attente</h2>
+        <div class="room-code-display">
+          <span class="label">Code de la partie</span>
+          <div class="code" id="room-code">-----</div>
+          <button id="btn-copy-code" class="btn-link">📋 Copier</button>
+        </div>
+
+        <h3>Joueurs (<span id="player-count">0</span>/8)</h3>
+        <ul id="player-list" class="player-list"></ul>
+
+        <div class="lobby-actions">
+          <button id="btn-start" class="btn btn-primary" disabled>
+            Lancer la partie
+          </button>
+          <button id="btn-leave" class="btn btn-secondary">Quitter</button>
+        </div>
+
+        <p id="lobby-info" class="info-msg"></p>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 3 : JEU EN COURS ============ -->
+    <section id="screen-game" class="screen">
+      <div class="game-layout">
+
+        <!-- Sidebar : scoreboard en temps réel -->
+        <aside class="sidebar">
+          <h3>Classement live</h3>
+          <ul id="scoreboard" class="scoreboard"></ul>
+          <div class="controls-hint">
+            <strong>Contrôles</strong>
+            <p>Flèches ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></p>
+          </div>
+        </aside>
+
+        <!-- Zone principale : grilles de tous les joueurs -->
+        <main class="grids-container">
+          <div id="grids" class="grids"></div>
+
+          <!-- Overlay quand le joueur est mort, en attente des autres -->
+          <div id="waiting-overlay" class="overlay hidden">
+            <div class="overlay-content">
+              <h2>💀 Tu es mort !</h2>
+              <p>Score final : <strong id="final-score">0</strong></p>
+              <p class="waiting">En attente des autres joueurs...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 4 : FIN DE PARTIE ============ -->
+    <section id="screen-gameover" class="screen">
+      <div class="card">
+        <h2 id="gameover-title">🏆 Victoire !</h2>
+        <p id="gameover-winner" class="winner-text"></p>
+
+        <h3>Classement final</h3>
+        <ol id="final-ranking" class="final-ranking"></ol>
+
+        <div class="lobby-actions">
+          <button id="btn-replay" class="btn btn-primary">Nouvelle partie</button>
+          <button id="btn-quit" class="btn btn-secondary">Menu principal</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/client.js"></script>
+</body>
+</html>
