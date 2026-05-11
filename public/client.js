@@ -18,7 +18,11 @@ const state = {
 };
 
 // Mapping playerId -> élément <canvas> pour ne pas recréer le DOM à chaque tick
+// (conservé pour rétro-compatibilité ; en mode solo non utilisé activement)
 const canvasMap = new Map();
+
+// Dernière direction envoyée (anti-spam : évite d'envoyer plusieurs fois la même)
+let lastDirection = null;
 
 // ===== Sélecteurs DOM (récupérés une fois) =====
 const $ = (id) => document.getElementById(id);
@@ -110,6 +114,7 @@ function handleServerMessage(msg) {
       state.gridSize = msg.gridSize;
       state.players = msg.players;
       state.inGame = true;
+      lastDirection = null;  // Reset pour permettre tous les premiers inputs
       buildGameUI();
       showScreen('game');
       $('waiting-overlay').classList.add('hidden');
@@ -240,67 +245,71 @@ $('btn-copy-code').addEventListener('click', async () => {
 
 // ===== ÉCRAN JEU : construction de l'UI =====
 
-/** Construit le DOM avec une grille par joueur. Appelé une seule fois au début. */
+/** Initialise l'écran de jeu : un seul canvas pour le joueur courant */
 function buildGameUI() {
-  const container = $('grids');
-  container.innerHTML = '';
-  canvasMap.clear();
+  const me = state.players.find(p => p.id === state.playerId);
+  if (!me) return;
 
-  // On affiche TOUS les joueurs, le joueur courant en premier pour le mettre en avant
-  const sortedPlayers = [...state.players].sort((a, b) => {
-    if (a.id === state.playerId) return -1;
-    if (b.id === state.playerId) return 1;
-    return 0;
-  });
+  // Affiche le nom et la couleur du joueur dans le header
+  $('my-name').textContent = me.name + (me.id === state.playerId ? ' (vous)' : '');
+  $('my-color-dot').style.background = me.color;
+  $('my-score').textContent = '0';
 
-  for (const player of sortedPlayers) {
-    const card = document.createElement('div');
-    card.className = 'grid-card';
-    card.dataset.playerId = player.id;
-    if (player.id === state.playerId) card.classList.add('self');
-
-    card.innerHTML = `
-      <div class="grid-header">
-        <span class="player-name">
-          <span class="color-dot" style="background:${player.color}"></span>
-          ${escapeHtml(player.name)}${player.id === state.playerId ? ' (vous)' : ''}
-        </span>
-        <span class="grid-score" data-score>0</span>
-      </div>
-      <canvas width="200" height="200"></canvas>
-    `;
-    container.appendChild(card);
-    canvasMap.set(player.id, card.querySelector('canvas'));
-  }
-
-  // Adapter la taille des canvas à leur conteneur (mais garder pixelated)
-  // La taille interne reste 200x200 ; CSS s'occupe du scaling visuel.
+  // Ferme le scoreboard s'il était ouvert
+  $('scoreboard-panel').classList.remove('open');
 }
 
-/** Redessine toutes les grilles et met à jour le scoreboard */
+/** Redessine la grille du joueur et met à jour le scoreboard */
 function renderGameState() {
   if (!state.inGame) return;
 
-  for (const player of state.players) {
-    const canvas = canvasMap.get(player.id);
-    if (!canvas) continue;
-
-    drawPlayerGrid(canvas, player);
-
-    // Mise à jour de la carte (score + état mort/vivant)
-    const card = canvas.closest('.grid-card');
-    if (card) {
-      card.classList.toggle('dead', !player.alive);
-      const scoreEl = card.querySelector('[data-score]');
-      if (scoreEl) scoreEl.textContent = player.score;
-    }
+  // Trouver MON joueur dans la liste reçue
+  const me = state.players.find(p => p.id === state.playerId);
+  if (me) {
+    drawPlayerGrid($('my-canvas'), me);
+    $('my-score').textContent = me.score || 0;
   }
 
   updateScoreboard();
+  updateOverlayStatus();
 }
 
-/** Dessine la grille d'un joueur sur son canvas */
+/** Met à jour la liste de statut des autres joueurs dans l'overlay "tu es mort" */
+function updateOverlayStatus() {
+  const overlay = $('waiting-overlay');
+  if (overlay.classList.contains('hidden')) return;
+
+  const list = $('overlay-status');
+  list.innerHTML = '';
+
+  // Affiche tous les joueurs sauf moi, en indiquant qui est encore en vie
+  const others = state.players.filter(p => p.id !== state.playerId);
+  for (const p of others) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="color-dot" style="background:${p.color}"></span>
+      <span>${escapeHtml(p.name)}</span>
+      <span class="${p.alive ? 'status-alive' : 'status-dead'}">
+        ${p.alive ? '🐍 en vie' : '💀 mort'}
+      </span>
+    `;
+    list.appendChild(li);
+  }
+}
+
+/** Dessine la grille du joueur sur son canvas (taille dynamique) */
 function drawPlayerGrid(canvas, player) {
+  // Resize logique du canvas pour suivre la taille réelle (devicePixelRatio pour netteté)
+  // On le fait à chaque frame pour gérer les rotations / resize d'écran sans handler dédié
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const cssSize = Math.floor(rect.width);
+  const pixelSize = Math.floor(cssSize * dpr);
+  if (canvas.width !== pixelSize) {
+    canvas.width = pixelSize;
+    canvas.height = pixelSize;
+  }
+
   const ctx = canvas.getContext('2d');
   const size = canvas.width;
   const cellSize = size / state.gridSize;
@@ -310,7 +319,7 @@ function drawPlayerGrid(canvas, player) {
   ctx.fillRect(0, 0, size, size);
 
   // Quadrillage léger (purement esthétique)
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1;
   for (let i = 1; i < state.gridSize; i++) {
     ctx.beginPath();
@@ -338,24 +347,25 @@ function drawPlayerGrid(canvas, player) {
     for (let i = 0; i < player.snake.length; i++) {
       const seg = player.snake[i];
       ctx.fillStyle = i === 0
-        ? lightenColor(player.color, 20)  // Tête plus claire
+        ? lightenColor(player.color, 40)  // Tête plus claire
         : player.color;
-      // Petit padding pour visualiser les segments distincts
+      // Padding proportionnel pour visualiser les segments distincts
+      const pad = Math.max(1, cellSize * 0.08);
       ctx.fillRect(
-        seg.x * cellSize + 1,
-        seg.y * cellSize + 1,
-        cellSize - 2,
-        cellSize - 2
+        seg.x * cellSize + pad,
+        seg.y * cellSize + pad,
+        cellSize - pad * 2,
+        cellSize - pad * 2
       );
     }
   }
 
-  // Si le joueur est mort, on grise la grille
+  // Si le joueur est mort, on grise la grille avec un overlay sombre
   if (!player.alive) {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = '#ef4444';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = `bold ${Math.floor(size / 6)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('💀', size / 2, size / 2);
@@ -386,20 +396,28 @@ function updateScoreboard() {
   sorted.forEach((p, idx) => {
     const li = document.createElement('li');
     if (!p.alive) li.classList.add('dead');
+    if (p.id === state.playerId) li.classList.add('me');
     li.innerHTML = `
       <span class="rank">${idx + 1}</span>
       <span class="color-dot" style="background:${p.color}"></span>
-      <span class="name">${escapeHtml(p.name)}${!p.alive ? ' 💀' : ''}</span>
+      <span class="name">${escapeHtml(p.name)}${p.id === state.playerId ? ' (vous)' : ''}${!p.alive ? ' 💀' : ''}</span>
       <span class="score">${p.score}</span>
     `;
     list.appendChild(li);
   });
 }
 
-// ===== Contrôles clavier =====
-// On bufferise la dernière direction envoyée pour éviter le spam et les demi-tours
-let lastDirection = null;
+// ===== Contrôles =====
 
+/** Envoie une direction au serveur (factorisé entre clavier et tactile) */
+function sendDirection(dir) {
+  if (!state.inGame) return;
+  if (dir === lastDirection) return;
+  lastDirection = dir;
+  send({ type: 'direction', direction: dir });
+}
+
+// --- Clavier (desktop) ---
 document.addEventListener('keydown', (e) => {
   if (!state.inGame) return;
 
@@ -411,11 +429,58 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowRight': case 'd': case 'D': dir = 'right'; break;
   }
 
-  if (dir && dir !== lastDirection) {
-    lastDirection = dir;
-    send({ type: 'direction', direction: dir });
+  if (dir) {
+    sendDirection(dir);
     e.preventDefault();
   }
+});
+
+// --- Boutons tactiles (mobile) ---
+// On utilise pointerdown qui couvre touch + souris, plus réactif que click
+document.querySelectorAll('.touch-btn').forEach(btn => {
+  const handler = (e) => {
+    e.preventDefault();
+    const dir = btn.dataset.dir;
+    if (dir) sendDirection(dir);
+  };
+  // pointerdown = réactif dès le toucher (pas d'attente du tap "click")
+  btn.addEventListener('pointerdown', handler);
+});
+
+// --- Swipe tactile sur le canvas (alternative aux boutons) ---
+// Permet de jouer en glissant le doigt sur la grille, plus intuitif
+let touchStart = null;
+const canvas = $('my-canvas');
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!touchStart || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - touchStart.x;
+  const dy = e.touches[0].clientY - touchStart.y;
+  const threshold = 25; // pixels avant de déclencher un swipe
+  if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+
+  // Direction dominante
+  if (Math.abs(dx) > Math.abs(dy)) {
+    sendDirection(dx > 0 ? 'right' : 'left');
+  } else {
+    sendDirection(dy > 0 ? 'down' : 'up');
+  }
+  // Réinitialise pour permettre des swipes consécutifs
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+
+canvas.addEventListener('touchend', () => { touchStart = null; }, { passive: true });
+
+// --- Toggle scoreboard latéral (mobile) ---
+$('btn-toggle-scoreboard').addEventListener('click', () => {
+  $('scoreboard-panel').classList.add('open');
+});
+$('btn-close-scoreboard').addEventListener('click', () => {
+  $('scoreboard-panel').classList.remove('open');
 });
 
 // ===== ÉCRAN FIN DE PARTIE =====

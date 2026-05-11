@@ -63,19 +63,19 @@
     <section id="screen-game" class="screen">
       <div class="game-layout">
 
-        <!-- Sidebar : scoreboard en temps réel -->
-        <aside class="sidebar">
-          <h3>Classement live</h3>
-          <ul id="scoreboard" class="scoreboard"></ul>
-          <div class="controls-hint">
-            <strong>Contrôles</strong>
-            <p>Flèches ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></p>
+        <!-- Bandeau du haut : ton nom, ton score, scoreboard compact -->
+        <header class="game-header">
+          <div class="me-info">
+            <span class="color-dot" id="my-color-dot"></span>
+            <span class="me-name" id="my-name">Joueur</span>
+            <span class="me-score">Score : <strong id="my-score">0</strong></span>
           </div>
-        </aside>
+          <button id="btn-toggle-scoreboard" class="btn-icon" aria-label="Afficher le classement">📊</button>
+        </header>
 
-        <!-- Zone principale : grilles de tous les joueurs -->
-        <main class="grids-container">
-          <div id="grids" class="grids"></div>
+        <!-- Zone principale : UNIQUEMENT ma grille, affichée en grand -->
+        <main class="game-main">
+          <canvas id="my-canvas" width="400" height="400"></canvas>
 
           <!-- Overlay quand le joueur est mort, en attente des autres -->
           <div id="waiting-overlay" class="overlay hidden">
@@ -83,9 +83,31 @@
               <h2>💀 Tu es mort !</h2>
               <p>Score final : <strong id="final-score">0</strong></p>
               <p class="waiting">En attente des autres joueurs...</p>
+              <ul id="overlay-status" class="overlay-status"></ul>
             </div>
           </div>
         </main>
+
+        <!-- Contrôles tactiles (pavé directionnel) - affiché sur mobile -->
+        <div class="touch-controls" id="touch-controls">
+          <button class="touch-btn touch-up" data-dir="up" aria-label="Haut">▲</button>
+          <button class="touch-btn touch-left" data-dir="left" aria-label="Gauche">◀</button>
+          <button class="touch-btn touch-right" data-dir="right" aria-label="Droite">▶</button>
+          <button class="touch-btn touch-down" data-dir="down" aria-label="Bas">▼</button>
+        </div>
+
+        <!-- Scoreboard latéral (caché par défaut sur mobile, toggleable) -->
+        <aside class="scoreboard-panel" id="scoreboard-panel">
+          <div class="scoreboard-header">
+            <h3>Classement live</h3>
+            <button id="btn-close-scoreboard" class="btn-icon" aria-label="Fermer">✕</button>
+          </div>
+          <ul id="scoreboard" class="scoreboard"></ul>
+          <div class="controls-hint">
+            <strong>Contrôles desktop</strong>
+            <p>Flèches ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></p>
+          </div>
+        </aside>
       </div>
     </section>
 
